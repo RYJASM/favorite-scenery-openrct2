@@ -136,6 +136,9 @@
     var favCurrentPage  = 0;
     var currentTypeIdx  = 0;
     var favTypeIdx      = 0;   // Tab 1 type filter index (independent of Tab 0)
+    var currentGroupIdx = 0;   // All Scenery tab group filter (0 = all groups)
+    var favGroupIdx     = 0;   // Favorites tab group filter (0 = all groups)
+    var groupList       = [];  // [{name, itemSet:{identifier:true}}] — sorted, loaded per window open
     var activeWindow      = null;
     var thumbRange        = null;   // ImageIndexRange for pre-rendered thumbnails
     var needHoverRestart  = false;  // set by tool onFinish; picked up by onUpdate to avoid re-entrancy
@@ -566,6 +569,44 @@
         });
     }
 
+    // ---- Scenery group filter ----
+    function loadGroupList() {
+        groupList = [];
+        try {
+            var groups = objectManager.getAllObjects("scenery_group");
+            groups.sort(function (a, b) {
+                var na = (a.name || "").toLowerCase(), nb = (b.name || "").toLowerCase();
+                return na < nb ? -1 : na > nb ? 1 : 0;
+            });
+            for (var i = 0; i < groups.length; i++) {
+                var set = {};
+                var grpItems = groups[i].items || [];
+                for (var j = 0; j < grpItems.length; j++) set[grpItems[j]] = true;
+                groupList.push({ name: groups[i].name || groups[i].identifier, itemSet: set });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    function buildGroupDropdownItems() {
+        var MAX_LEN = 28;
+        var items = ["All Groups"];
+        for (var i = 0; i < groupList.length; i++) {
+            var name = groupList[i].name;
+            if (name.length > MAX_LEN) name = name.substring(0, MAX_LEN - 1) + "\u2026";
+            items.push(name);
+        }
+        return items;
+    }
+
+    function applyGroupFilter(items, groupIdx) {
+        if (groupIdx === 0 || groupIdx > groupList.length) return items;
+        var set = groupList[groupIdx - 1].itemSet;
+        return items.filter(function (item) {
+            var id = item.obj ? item.obj.identifier : item.identifier;
+            return set[id] === true;
+        });
+    }
+
     // ---- Thumbnail rendering ----
     // Pre-renders each sprite into a fixed BTN_SIZE x BTN_SIZE image slot,
     // applying the sprite's built-in offset so the image is centered and clipped.
@@ -930,11 +971,25 @@
 
         var n = pageCount(filteredCatalog.length);
         var lbl = win.findWidget("all_page_lbl");
-        if (lbl) lbl.text = "Pg " + (allCurrentPage + 1) + "/" + n;
+        if (lbl) lbl.text = (allCurrentPage + 1) + "/" + n;
         var prev = win.findWidget("all_prev");
         var next = win.findWidget("all_next");
         if (prev) prev.isDisabled = (allCurrentPage === 0);
         if (next) next.isDisabled = (allCurrentPage >= n - 1);
+
+        var noResultsLbl = win.findWidget("all_no_results_lbl");
+        if (noResultsLbl) noResultsLbl.isVisible = (filteredCatalog.length === 0);
+
+        // Dynamic height: shrink/grow grid box and window based on filled rows
+        var filledRows = allPageItems.length > 0 ? Math.ceil(allPageItems.length / GRID_COLS) : 0;
+        var gridH      = filledRows > 0 ? filledRows * (BTN_H + BTN_GAP) - BTN_GAP : 0;
+        if (filteredCatalog.length === 0) gridH += BTN_H; // room for no-results label
+        var gridBox = win.findWidget("all_grid_box");
+        if (gridBox) gridBox.height = (ALL_GRID_Y - 104) + gridH + MARGIN;
+        var newHoverY = ALL_GRID_Y + gridH + 10;
+        var hovLbl = win.findWidget("all_hover_lbl");
+        if (hovLbl) hovLbl.y = newHoverY;
+        win.height = newHoverY + 20;
     }
 
     // ---- Grid update: Tab 1 ----
@@ -954,6 +1009,7 @@
                 return item.type === typeFilter;
             });
         }
+        allFavItems = applyGroupFilter(allFavItems, favGroupIdx);
         var favItems = applySearch(allFavItems, favSearchText);
 
         var start = favCurrentPage * GRID_SIZE;
@@ -987,7 +1043,7 @@
 
         var favTotalPages = pageCount(favItems.length);
         var lbl = win.findWidget("fav_page_lbl");
-        if (lbl) lbl.text = "Pg " + (favCurrentPage + 1) + "/" + favTotalPages;
+        if (lbl) lbl.text = (favCurrentPage + 1) + "/" + favTotalPages;
         var prev = win.findWidget("fav_prev");
         var next = win.findWidget("fav_next");
         if (prev) prev.isDisabled = (favCurrentPage === 0);
@@ -1014,6 +1070,7 @@
         var isEmptyView = (favViewMode === "recent")
             ? (recentItems.length === 0)
             : (collections[activeCollIdx].items.length === 0);
+        var isNoResults = !isEmptyView && favItems.length === 0;
         var emptyLbl = win.findWidget("fav_empty_lbl");
         if (emptyLbl) {
             emptyLbl.isVisible = isEmptyView;
@@ -1021,7 +1078,9 @@
                 ? "No recently placed items yet"
                 : "Add to this collection using the scenery tab";
         }
-        if (isEmptyView) gb3H += BTN_H;
+        var noResultsLbl = win.findWidget("fav_no_results_lbl");
+        if (noResultsLbl) noResultsLbl.isVisible = isNoResults;
+        if (isEmptyView || isNoResults) gb3H += BTN_H;
 
         // Remove button is meaningless in recent view — keep it disabled
         var removeBtn = win.findWidget("fav_remove_btn");
@@ -1128,41 +1187,59 @@
             name:      "search_input",
             x:         2*MARGIN + FAV_CTRL_OFF + 46 + 2,
             y:         ALL_SEARCH_Y,
-            width:     WIN_WIDTH - 2*MARGIN - (2*MARGIN + FAV_CTRL_OFF + 46 + 2) - 34,
+            width:     WIN_WIDTH - 2*MARGIN - (2*MARGIN + FAV_CTRL_OFF + 46 + 2) - 34 - 104,
             height:    13,
             text:      "",
             maxLength: 100,
             onChange:  function (text) {
                 searchText      = text;
-                filteredCatalog = applySearch(buildCatalog(TYPE_VALUES[currentTypeIdx]), searchText);
+                filteredCatalog = applyGroupFilter(applySearch(buildCatalog(TYPE_VALUES[currentTypeIdx]), searchText), currentGroupIdx);
                 allCurrentPage  = 0;
                 if (activeWindow) updateAllGrid(activeWindow);
             }
         });
 
-        // Type filter dropdown (shifted right by FAV_CTRL_OFF)
+        // Type filter dropdown — on search row, right side before rotate button
         w.push({
             type:          "dropdown",
             name:          "type_filter",
-            x:             2*MARGIN + FAV_CTRL_OFF + 3,
-            y:             ALL_CTRL_Y,
-            width:         110,
+            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 100,
+            y:             ALL_SEARCH_Y,
+            width:         100,
             height:        13,
             items:         TYPE_LABELS,
             selectedIndex: 0,
             onChange:      function (idx) {
                 currentTypeIdx  = idx;
-                filteredCatalog = applySearch(buildCatalog(TYPE_VALUES[idx]), searchText);
+                filteredCatalog = applyGroupFilter(applySearch(buildCatalog(TYPE_VALUES[idx]), searchText), currentGroupIdx);
                 allCurrentPage  = 0;
                 if (activeWindow) updateAllGrid(activeWindow);
             }
         });
 
-        // Prev / page label / next (same relative positions as Tab 1)
+        // Group filter dropdown — now spans full ctrl row width
+        w.push({
+            type:          "dropdown",
+            name:          "group_filter",
+            x:             2*MARGIN + FAV_CTRL_OFF + 3,
+            y:             ALL_CTRL_Y,
+            width:         200,
+            height:        13,
+            items:         buildGroupDropdownItems(),
+            selectedIndex: 0,
+            onChange:      function (idx) {
+                currentGroupIdx = idx;
+                filteredCatalog = applyGroupFilter(applySearch(buildCatalog(TYPE_VALUES[currentTypeIdx]), searchText), currentGroupIdx);
+                allCurrentPage  = 0;
+                if (activeWindow) updateAllGrid(activeWindow);
+            }
+        });
+
+        // Prev / page label / next — compacted to right side of control row
         w.push({
             type:      "button",
             name:      "all_prev",
-            x:         2*MARGIN + FAV_CTRL_OFF + 117,
+            x:         246,
             y:         ALL_CTRL_Y,
             width:     16,
             height:    13,
@@ -1178,17 +1255,17 @@
         w.push({
             type:      "label",
             name:      "all_page_lbl",
-            x:         2*MARGIN + FAV_CTRL_OFF + 4 + 110 + 4 + 16 + 4 + 68,
+            x:         264,
             y:         ALL_CTRL_Y + 2,
-            width:     50,
+            width:     100,
             height:    10,
             textAlign: "centred",
-            text:      "Pg 1/1"
+            text:      "1/1"
         });
         w.push({
             type:      "button",
             name:      "all_next",
-            x:         2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 16 - 4,
+            x:         366,
             y:         ALL_CTRL_Y,
             width:     16,
             height:    13,
@@ -1243,6 +1320,19 @@
             width:  WIN_WIDTH - MARGIN * 2,
             height: 13,
             text:   ""
+        });
+
+        // No-results label — shown centred in the grid area when filters yield zero results
+        w.push({
+            type:      "label",
+            name:      "all_no_results_lbl",
+            x:         MARGIN + 2,
+            y:         ALL_GRID_Y + Math.floor((BTN_H - 13) / 2),
+            width:     WIN_WIDTH - MARGIN * 2 - 4,
+            height:    13,
+            text:      "No results based on your filters",
+            textAlign: "centred",
+            isVisible: false
         });
 
         return w;
@@ -1348,7 +1438,7 @@
             name:      "fav_search_input",
             x:         2*MARGIN  + 46,
             y:         FAV_SEARCH_Y,
-            width:     WIN_WIDTH - 2*MARGIN - 46 - 2*MARGIN - 34,
+            width:     WIN_WIDTH - 2*MARGIN - 46 - 2*MARGIN - 34 - 104,
             height:    13,
             text:      "",
             maxLength: 100,
@@ -1359,13 +1449,13 @@
             }
         });
 
-        // Type filter dropdown (shifted right by FAV_CTRL_OFF)
+        // Type filter dropdown — on search row, right side before rotate button
         w.push({
             type:          "dropdown",
             name:          "fav_type_filter",
-            x:             2*MARGIN,
-            y:             FAV_TYPE_Y,
-            width:         110 + FAV_CTRL_OFF + 3,
+            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 100,
+            y:             FAV_SEARCH_Y,
+            width:         100,
             height:        13,
             items:         FAV_TYPE_LABELS,
             selectedIndex: 0,
@@ -1375,23 +1465,29 @@
                 if (activeWindow) updateFavGrid(activeWindow);
             }
         });
-/*
-        // Status label
+
+        // Group filter dropdown — now spans full ctrl row width
         w.push({
-            type:  "label",
-            name:  "fav_status",
-            x:     MARGIN,
-            y:     FAV_STATUS_Y,
-            width: WIN_WIDTH - MARGIN * 2,
-            height: 12,
-            text:  "Click a favorite to start placing"
+            type:          "dropdown",
+            name:          "fav_group_filter",
+            x:             2*MARGIN,
+            y:             FAV_TYPE_Y,
+            width:         200,
+            height:        13,
+            items:         buildGroupDropdownItems(),
+            selectedIndex: 0,
+            onChange:      function (idx) {
+                favGroupIdx    = idx;
+                favCurrentPage = 0;
+                if (activeWindow) updateFavGrid(activeWindow);
+            }
         });
-        */
-        // Prev / page label / next (same row as dropdown, shifted right by FAV_CTRL_OFF)
+
+        // Prev / page label / next — compacted to right side of control row
         w.push({
             type:      "button",
             name:      "fav_prev",
-            x:         2*MARGIN + FAV_CTRL_OFF + 117,
+            x:         216,
             y:         FAV_TYPE_Y,
             width:     16,
             height:    13,
@@ -1407,17 +1503,17 @@
         w.push({
             type:      "label",
             name:      "fav_page_lbl",
-            x:         2*MARGIN + FAV_CTRL_OFF + 4 + 110 + 4 + 16 + 4 + 68,
+            x:         234,
             y:         FAV_TYPE_Y + 2,
-            width:     50,
+            width:     130,
             height:    10,
-            text:      "Pg 1/1",
+            text:      "1/1",
             textAlign: "centred"
         });
         w.push({
             type:      "button",
             name:      "fav_next",
-            x:         2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 16 - 4,
+            x:         366,
             y:         FAV_TYPE_Y,
             width:     16,
             height:    13,
@@ -1435,6 +1531,7 @@
                 } else if (typeFilter !== "all") {
                     allFavItems = allFavItems.filter(function (item) { return item.type === typeFilter; });
                 }
+                allFavItems = applyGroupFilter(allFavItems, favGroupIdx);
                 var items = applySearch(allFavItems, favSearchText);
                 var n = pageCount(items.length);
                 if (favCurrentPage < n - 1) {
@@ -1501,6 +1598,19 @@
             width:     WIN_WIDTH - MARGIN * 2 - 4,
             height:    13,
             text:      "Add to this collection using the scenery tab",
+            textAlign: "centred",
+            isVisible: false
+        });
+
+        // No-results label — shown centred in the grid area when filters yield zero results
+        w.push({
+            type:      "label",
+            name:      "fav_no_results_lbl",
+            x:         MARGIN + 2,
+            y:         FAV_GRID_Y + Math.floor((BTN_H - 13) / 2),
+            width:     WIN_WIDTH - MARGIN * 2 - 4,
+            height:    13,
+            text:      "No results based on your filters",
             textAlign: "centred",
             isVisible: false
         });
@@ -2043,7 +2153,6 @@
                     updateFavGrid(activeWindow);
                     needHoverRestart = true;
                 } else if (activeWindow.tabIndex === 1) {
-                    activeWindow.height = ALL_HOVER_Y + 20;
                     hoveredFavItem = null;
                     updateAllGrid(activeWindow);
                     needHoverRestart = true;
@@ -2110,7 +2219,7 @@
                         // If the All Scenery tab is currently showing "recent", refresh it live
                         if (activeWindow && activeWindow.tabIndex === 1
                                 && TYPE_VALUES[currentTypeIdx] === "recent") {
-                            filteredCatalog = applySearch(buildCatalog("recent"), searchText);
+                            filteredCatalog = applyGroupFilter(applySearch(buildCatalog("recent"), searchText), currentGroupIdx);
                             updateAllGrid(activeWindow);
                         }
                         // If the Favorites tab is showing the Recent Items collection, refresh it live
@@ -2140,13 +2249,16 @@
                 if (existing) { existing.close(); return; }
             } catch (e) { /* window not found */ }
 
-            // Reset pagination and search
+            // Reset pagination, search, and filters; load groups for current park
+            loadGroupList();
             allCurrentPage  = 0;
             favCurrentPage  = 0;
             searchText      = "";
             favSearchText   = "";
             currentTypeIdx  = 0;
             favTypeIdx      = 0;
+            currentGroupIdx = 0;
+            favGroupIdx     = 0;
             filteredCatalog = buildCatalog("all");
 
             var desc = buildWindowDesc();
