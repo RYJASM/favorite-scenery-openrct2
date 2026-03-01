@@ -43,7 +43,6 @@ This tab shows the items saved in your active collection. Use it to place your f
 | Type dropdown | Filter favorites by type, or choose *Recently Placed* |
 | Search box | Filter favorites by name or identifier |
 | **Click** a tile | Activate the placement tool for that item — click again to cancel |
-| **Eyedropper** button | Activate the map picker — click placed scenery on the map to add it to your collection |
 | **Remove** button | Hover over a tile to enable it, then click to remove that item from the collection |
 
 ### Second Tab — All Scenery
