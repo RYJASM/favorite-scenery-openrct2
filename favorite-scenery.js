@@ -588,7 +588,7 @@
     }
 
     function buildGroupDropdownItems() {
-        var MAX_LEN = 28;
+        var MAX_LEN = 30;
         var items = ["All Groups"];
         for (var i = 0; i < groupList.length; i++) {
             var name = groupList[i].name;
@@ -988,8 +988,10 @@
         if (gridBox) gridBox.height = (ALL_GRID_Y - 104) + gridH + MARGIN;
         var newHoverY = ALL_GRID_Y + gridH + 10;
         var hovLbl = win.findWidget("all_hover_lbl");
-        if (hovLbl) hovLbl.y = newHoverY;
-        win.height = newHoverY + 20;
+        if (hovLbl) hovLbl.y = newHoverY + 8;
+        var rotBtn = win.findWidget("all_rotate");
+        if (rotBtn) rotBtn.y = newHoverY;
+        win.height = newHoverY + 33;
     }
 
     // ---- Grid update: Tab 1 ----
@@ -1090,12 +1092,13 @@
         if (gb3Box) gb3Box.height = gb3H;
 
         var newHoverY = FAV_GB3_Y + gb3H + 6;
-        var hovLbl = win.findWidget("fav_hover_lbl");  if (hovLbl) hovLbl.y = newHoverY;
-        var cp1    = win.findWidget("fav_color_1");    if (cp1)    cp1.y    = newHoverY;
-        var cp2    = win.findWidget("fav_color_2");    if (cp2)    cp2.y    = newHoverY;
-        var cp3    = win.findWidget("fav_color_3");    if (cp3)    cp3.y    = newHoverY;
-        var rb     = win.findWidget("fav_remove_btn"); if (rb)     rb.y     = newHoverY;
-        win.height = newHoverY + 20;
+        var hovLbl = win.findWidget("fav_hover_lbl");  if (hovLbl) hovLbl.y = newHoverY + 8;
+        var cp1    = win.findWidget("fav_color_1");    if (cp1)    cp1.y    = newHoverY + 7;
+        var cp2    = win.findWidget("fav_color_2");    if (cp2)    cp2.y    = newHoverY + 7;
+        var cp3    = win.findWidget("fav_color_3");    if (cp3)    cp3.y    = newHoverY + 7;
+        var rb     = win.findWidget("fav_remove_btn"); if (rb)     rb.y     = newHoverY + 7;
+        var rotBtn = win.findWidget("fav_rotate");    if (rotBtn) rotBtn.y = newHoverY;
+        win.height = newHoverY + 33;
     }
 
     // Updates only the isPressed state of all fav buttons based on activePlacingItem.
@@ -1187,7 +1190,7 @@
             name:      "search_input",
             x:         2*MARGIN + FAV_CTRL_OFF + 46 + 2,
             y:         ALL_SEARCH_Y,
-            width:     WIN_WIDTH - 2*MARGIN - (2*MARGIN + FAV_CTRL_OFF + 46 + 2) - 34 - 104,
+            width:     WIN_WIDTH - 2*MARGIN - (2*MARGIN + FAV_CTRL_OFF + 46 + 2) - 34 - 138,
             height:    13,
             text:      "",
             maxLength: 100,
@@ -1199,13 +1202,13 @@
             }
         });
 
-        // Type filter dropdown — on search row, right side before rotate button
+        // Type filter dropdown — on search row, right side
         w.push({
             type:          "dropdown",
             name:          "type_filter",
-            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 100,
+            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 134,
             y:             ALL_SEARCH_Y,
-            width:         100,
+            width:         168,
             height:        13,
             items:         TYPE_LABELS,
             selectedIndex: 0,
@@ -1223,7 +1226,7 @@
             name:          "group_filter",
             x:             2*MARGIN + FAV_CTRL_OFF + 3,
             y:             ALL_CTRL_Y,
-            width:         200,
+            width:         202,
             height:        13,
             items:         buildGroupDropdownItems(),
             selectedIndex: 0,
@@ -1239,7 +1242,7 @@
         w.push({
             type:      "button",
             name:      "all_prev",
-            x:         246,
+            x:         248,
             y:         ALL_CTRL_Y,
             width:     16,
             height:    13,
@@ -1257,7 +1260,7 @@
             name:      "all_page_lbl",
             x:         264,
             y:         ALL_CTRL_Y + 2,
-            width:     100,
+            width:     134,
             height:    10,
             textAlign: "centred",
             text:      "1/1"
@@ -1265,7 +1268,7 @@
         w.push({
             type:      "button",
             name:      "all_next",
-            x:         366,
+            x:         400,
             y:         ALL_CTRL_Y,
             width:     16,
             height:    13,
@@ -1279,19 +1282,6 @@
                 }
             }
         });
-        w.push({
-            type:    "button",
-            name:    "all_rotate",
-            x:       2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH, 
-            y:       ALL_SEARCH_Y,
-            width:   30,
-            height:  ALL_CTRL_Y + 13 - ALL_SEARCH_Y,
-            image:   "rotate_arrow",
-            border:  true,
-            tooltip: "Rotate direction clockwise",
-            onClick: rotateDirection
-        });
-
         // Image button grid
         var btns = makeGridButtons("allbtn_", ALL_GRID_Y, function (i) {
             if (i >= allPageItems.length) return;
@@ -1316,10 +1306,22 @@
             type:   "label",
             name:   "all_hover_lbl",
             x:      MARGIN,
-            y:      ALL_HOVER_Y,
-            width:  WIN_WIDTH - MARGIN * 2,
+            y:      ALL_HOVER_Y + 8,
+            width:  WIN_WIDTH - MARGIN * 2 - 2 - 30,
             height: 13,
             text:   ""
+        });
+        w.push({
+            type:    "button",
+            name:    "all_rotate",
+            x:       WIN_WIDTH - MARGIN - 28,
+            y:       ALL_HOVER_Y,
+            width:   28,
+            height:  26,
+            image:   "rotate_arrow",
+            border:  false,
+            tooltip: "Rotate direction clockwise",
+            onClick: rotateDirection
         });
 
         // No-results label — shown centred in the grid area when filters yield zero results
@@ -1346,7 +1348,7 @@
         // Groupboxes (visual containers — must be pushed before the widgets they frame)
         // "Choose Scenery" (GB3) height is dynamic; initial value covers all 7 rows.
         w.push({ type: "groupbox", name: "fav_coll_box",    x: MARGIN, y: 48,          width: GBWIDE, height: 34,  text: "Favorites Collection" });
-        w.push({ type: "groupbox", name: "fav_filter_box",  x: MARGIN, y: 85,          width: GBWIDE, height: 50,  text: "Select & Filter" });
+        w.push({ type: "groupbox", name: "fav_filter_box",  x: MARGIN, y: 85,          width: GBWIDE, height: 50,  text: "Filter" });
         w.push({ type: "groupbox", name: "fav_scenery_box", x: MARGIN, y: FAV_GB3_Y,   width: GBWIDE, height: 336, text: "Choose Scenery to Place" });
 
         // Collections row: dropdown + New/Rename/Delete buttons
@@ -1438,7 +1440,7 @@
             name:      "fav_search_input",
             x:         2*MARGIN  + 46,
             y:         FAV_SEARCH_Y,
-            width:     WIN_WIDTH - 2*MARGIN - 46 - 2*MARGIN - 34 - 104,
+            width:     WIN_WIDTH - 2*MARGIN - 46 - 2*MARGIN - 34 - 138,
             height:    13,
             text:      "",
             maxLength: 100,
@@ -1449,13 +1451,13 @@
             }
         });
 
-        // Type filter dropdown — on search row, right side before rotate button
+        // Type filter dropdown — on search row, right side
         w.push({
             type:          "dropdown",
             name:          "fav_type_filter",
-            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 100,
+            x:             2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH - 4 - 134,
             y:             FAV_SEARCH_Y,
-            width:         100,
+            width:         168,
             height:        13,
             items:         FAV_TYPE_LABELS,
             selectedIndex: 0,
@@ -1472,7 +1474,7 @@
             name:          "fav_group_filter",
             x:             2*MARGIN,
             y:             FAV_TYPE_Y,
-            width:         200,
+            width:         232,
             height:        13,
             items:         buildGroupDropdownItems(),
             selectedIndex: 0,
@@ -1487,7 +1489,7 @@
         w.push({
             type:      "button",
             name:      "fav_prev",
-            x:         216,
+            x:         248,
             y:         FAV_TYPE_Y,
             width:     16,
             height:    13,
@@ -1503,9 +1505,9 @@
         w.push({
             type:      "label",
             name:      "fav_page_lbl",
-            x:         234,
+            x:         250,
             y:         FAV_TYPE_Y + 2,
-            width:     130,
+            width:     164,
             height:    10,
             text:      "1/1",
             textAlign: "centred"
@@ -1513,7 +1515,7 @@
         w.push({
             type:      "button",
             name:      "fav_next",
-            x:         366,
+            x:         400,
             y:         FAV_TYPE_Y,
             width:     16,
             height:    13,
@@ -1540,19 +1542,6 @@
                 }
             }
         });
-        w.push({
-            type:    "button",
-            name:    "fav_rotate",
-            x:       2*MARGIN - 2*FAV_CTRL_OFF + WIN_WIDTH, 
-            y:       FAV_SEARCH_Y,
-            width:   30,
-            height:  FAV_TYPE_Y + 13 - FAV_SEARCH_Y,
-            image:   "rotate_arrow",
-            border:  true,
-            tooltip: "Rotate direction clockwise",
-            onClick: rotateDirection
-        });
-
         // Image button grid
         var btns = makeGridButtons("favbtn_", FAV_GRID_Y, function (i) {
             if (i >= favPageItems.length) return;
@@ -1615,22 +1604,33 @@
             isVisible: false
         });
 
-        // Hover row: item name label | 3 colour pickers | Remove button
+        // Hover row: item name label | Remove button | 3 colour pickers | Rotate button
         w.push({
             type:   "label",
             name:   "fav_hover_lbl",
             x:      MARGIN,
-            y:      FAV_HOVER_Y,
+            y:      FAV_HOVER_Y + 6,
             width:  156,
             height: 13,
             text:   ""
+        });
+        w.push({
+            type:      "button",
+            name:      "fav_remove_btn",
+            x:         WIN_WIDTH - MARGIN - 28 - 4 - 12 - 2 - 12 - 2 - 12 - 4 - 70,
+            y:         FAV_HOVER_Y + 7,
+            width:     70,
+            height:    13,
+            text:      "Remove",
+            isDisabled:true,
+            onClick:   function () { showRemoveConfirm(hoveredFavItem); }
         });
         // Global colour pickers — always visible; applied to every item placed
         w.push({
             type:       "colourpicker",
             name:       "fav_color_1",
-            x:          WIN_WIDTH - 70 - MARGIN - 2 - 12 - 2 - 12 - 2 - 12 - 2,
-            y:          FAV_HOVER_Y,
+            x:          WIN_WIDTH - MARGIN - 30 - 2 - 12 - 2 - 12 - 2 - 12,
+            y:          FAV_HOVER_Y + 7,
             width:      12,
             height:     12,
             colour:     globalPrimaryColour,
@@ -1645,8 +1645,8 @@
         w.push({
             type:       "colourpicker",
             name:       "fav_color_2",
-            x:          WIN_WIDTH - 70 - MARGIN - 2 - 12 - 2 - 12 - 2,
-            y:          FAV_HOVER_Y,
+            x:          WIN_WIDTH - MARGIN - 30 - 2 - 12 - 2 - 12,
+            y:          FAV_HOVER_Y + 7,
             width:      12,
             height:     12,
             colour:     globalSecondaryColour,
@@ -1661,8 +1661,8 @@
         w.push({
             type:       "colourpicker",
             name:       "fav_color_3",
-            x:          WIN_WIDTH - 70 - MARGIN - 2 - 12 - 2,
-            y:          FAV_HOVER_Y,
+            x:          WIN_WIDTH - MARGIN - 30 - 2 - 12,
+            y:          FAV_HOVER_Y + 7,
             width:      12,
             height:     12,
             colour:     globalTertiaryColour,
@@ -1675,15 +1675,16 @@
             }
         });
         w.push({
-            type:      "button",
-            name:      "fav_remove_btn",
-            x:         WIN_WIDTH - 70 - MARGIN,
-            y:         FAV_HOVER_Y,
-            width:     70,
-            height:    13,
-            text:      "Remove",
-            isDisabled:true,
-            onClick:   function () { showRemoveConfirm(hoveredFavItem); }
+            type:    "button",
+            name:    "fav_rotate",
+            x:       WIN_WIDTH - MARGIN - 28,
+            y:       FAV_HOVER_Y,
+            width:   28,
+            height:  26,
+            image:   "rotate_arrow",
+            border:  false,
+            tooltip: "Rotate direction clockwise",
+            onClick: rotateDirection
         });
 
         return w;
@@ -2286,7 +2287,7 @@
 
     registerPlugin({
         name:            "Favorite Scenery",
-        version:         "1.1.0",
+        version:         "1.1.1",
         authors:         ["DookieNukem"],
         type:            "local",
         licence:         "MIT",
