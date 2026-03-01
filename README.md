@@ -6,13 +6,13 @@ A plugin for [OpenRCT2](https://openrct2.io) that lets you build collections of 
 
 ## Features
 
-- **Browse all scenery** in a visual 6×7 grid with thumbnails
+- **Browse all scenery** in a visual 6×5 grid with thumbnails
 - **Toggle favorites** — click any scenery item to add or remove it from your active collection
 - **Pick from the map** — use the eyedropper to click placed scenery on the map and add it to your collection
 - **Place favorites** from your collection with a single click
 - **Multiple named collections** — create, rename, and delete collections to organize your scenery
 - **Recent Items** — a dynamic collection that automatically tracks everything you place, even from the native game UI, so your most-used scenery is always one click away
-- **Filter by type**: All Types, Small Scenery, Large Scenery, Trees & Plants, Walls, Path Items, Banners
+- **Filter by type and group** — narrow by category (Small Scenery, Walls, etc.) or by scenery group
 - **Search** by name or object identifier
 - **Global color palette** — set primary, secondary, and tertiary colors applied to every item you place
 - **Import / Export** collections as JSON to share with others or back up your favorites
@@ -42,9 +42,14 @@ This tab shows the items saved in your active collection. Use it to place your f
 | **Rename** button | Rename the active collection |
 | **Delete** button | Delete the active collection (disabled if only one exists) |
 | Type dropdown | Filter favorites by type, or choose *Recently Placed* |
+| Group dropdown | Filter favorites by scenery group |
 | Search box | Filter favorites by name or identifier |
 | **Click** a tile | Activate the placement tool for that item — click again to cancel |
 | **Remove** button | Hover over a tile to enable it, then click to remove that item from the collection |
+
+#### Color Palette
+
+Three color pickers at the bottom of the favorites grid set the **primary**, **secondary**, and **tertiary** colors applied to every item placed through the plugin. Your color choices are saved between sessions.
 
 ### Second Tab — All Scenery
 
@@ -54,13 +59,12 @@ This tab shows every scenery object loaded in the current scenario. Use it to bu
 |---------|--------|
 | Search box | Filter items by name or identifier |
 | Type dropdown | Narrow down to a specific scenery category |
+| Group dropdown | Narrow down to a specific scenery group |
 | `<` / `>` buttons | Navigate between pages |
 | **Click** a tile | Toggle the item in/out of your active collection (pressed = favorited) |
 | **Eyedropper** button | Activate the map picker — click placed scenery on the map to toggle it as a favorite |
 
-#### Color Palette
 
-Three color pickers at the bottom of the favorites grid set the **primary**, **secondary**, and **tertiary** colors applied to every item placed through the plugin. Your color choices are saved between sessions.
 
 ### Third Tab — Import / Export
 
