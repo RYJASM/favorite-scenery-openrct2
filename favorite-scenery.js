@@ -57,6 +57,7 @@
 
     var TYPE_LABELS = [
         "All Types",
+        "Recently Placed",
         "Small Scenery",
         "Large Scenery",
         "Trees & Plants",
@@ -67,6 +68,7 @@
 
     var TYPE_VALUES = [
         "all",
+        "recent",
         "small_scenery",
         "large_scenery",
         "vegetation",        // special: filtered by scenery group membership
@@ -75,10 +77,8 @@
         "banner"
     ];
 
-    // Tab 1 type filter also includes "Recently Placed" (Tab 0 keeps TYPE_LABELS/TYPE_VALUES)
     var FAV_TYPE_LABELS = [
         "All Types",
-        "Recently Placed",
         "Small Scenery",
         "Large Scenery",
         "Trees & Plants",
@@ -88,7 +88,6 @@
     ];
     var FAV_TYPE_VALUES = [
         "all",
-        "recent",
         "small_scenery",
         "large_scenery",
         "vegetation",
@@ -122,11 +121,13 @@
     var ACTIVE_COLL_KEY = "FavoriteScenery.activeCollection";
     var RECENT_KEY      = "FavoriteScenery.recent";
     var COLORS_KEY      = "FavoriteScenery.globalColors";
-    var RECENT_MAX      = 16;
+    var WINDOW_POS_KEY  = "FavoriteScenery.windowPos";
+    var RECENT_MAX      = 150;  // 5 pages × 30 items
 
     // ---- Mutable state ----
     var collections   = [{name: "Default", items: []}];  // [{name, items:[{type,identifier}]}]
     var activeCollIdx = 0;
+    var favViewMode   = "collection"; // "collection" | "recent" — what the Favorites grid shows
     var recentItems   = [];   // recently placed items, newest first
     var filteredCatalog = [];   // [{type, obj}] for Tab 0
     var allPageItems    = [];   // current page slice for Tab 0
@@ -169,7 +170,16 @@
             }
         }
         var savedIdx = context.sharedStorage.get(ACTIVE_COLL_KEY);
-        activeCollIdx = (typeof savedIdx === "number" && savedIdx >= 0 && savedIdx < collections.length) ? savedIdx : 0;
+        if (savedIdx === -1) {
+            favViewMode   = "recent";
+            activeCollIdx = 0;
+        } else if (typeof savedIdx === "number" && savedIdx >= 0 && savedIdx < collections.length) {
+            favViewMode   = "collection";
+            activeCollIdx = savedIdx;
+        } else {
+            favViewMode   = "collection";
+            activeCollIdx = 0;
+        }
         var savedRecent = context.sharedStorage.get(RECENT_KEY);
         recentItems = Array.isArray(savedRecent) ? savedRecent : [];
         var savedColors = context.sharedStorage.get(COLORS_KEY);
@@ -190,7 +200,7 @@
 
     function saveCollections() {
         context.sharedStorage.set(COLLECTIONS_KEY, collections);
-        context.sharedStorage.set(ACTIVE_COLL_KEY, activeCollIdx);
+        context.sharedStorage.set(ACTIVE_COLL_KEY, favViewMode === "recent" ? -1 : activeCollIdx);
     }
 
     function saveRecent() {
@@ -243,6 +253,17 @@
     }
 
     function buildCatalog(typeFilter) {
+        if (typeFilter === "recent") {
+            // Preserve recency order (no alpha sort); exclude items not in the current park
+            var recItems = buildRecentItems();
+            var result = [];
+            for (var ri = 0; ri < recItems.length; ri++) {
+                if (recItems[ri].available) {
+                    result.push({ type: recItems[ri].type, obj: recItems[ri].obj });
+                }
+            }
+            return result;
+        }
         var list = [];
         if (typeFilter === "vegetation") {
             var vegIds = getVegetationIdentifiers();
@@ -324,6 +345,7 @@
 
     function createCollection(name) {
         collections.push({ name: name, items: [] });
+        favViewMode   = "collection";
         activeCollIdx = collections.length - 1;
         saveCollections();
         if (activeWindow) { refreshCollectionDropdown(activeWindow); updateFavGrid(activeWindow); }
@@ -347,22 +369,27 @@
     function updateWindowTitle(win) {
         if (!win) return;
         if (win.tabIndex === 1) {
-            win.title = "Add Scenery to "+ collections[activeCollIdx].name + " Collection";
+            win.title = "Add Scenery to " + collections[activeCollIdx].name + " Collection";
         } else if (win.tabIndex === 0) {
-            win.title = collections[activeCollIdx].name + " Collection";
+            win.title = (favViewMode === "recent")
+                ? "Recent Items"
+                : collections[activeCollIdx].name + " Collection";
         } else {
             win.title = "Import / Export Collections";
         }
     }
 
     function refreshCollectionDropdown(win) {
+        var isRecent = (favViewMode === "recent");
         var dd = win.findWidget("fav_coll_select");
         if (dd) {
-            dd.items = collections.map(function (c) { return c.name; });
-            dd.selectedIndex = activeCollIdx;
+            dd.items = ["Recent Items"].concat(collections.map(function (c) { return c.name; }));
+            dd.selectedIndex = isRecent ? 0 : activeCollIdx + 1;
         }
+        var renameBtn = win.findWidget("fav_coll_rename");
+        if (renameBtn) renameBtn.isDisabled = isRecent;
         var delBtn = win.findWidget("fav_coll_delete");
-        if (delBtn) delBtn.isDisabled = (collections.length <= 1);
+        if (delBtn) delBtn.isDisabled = isRecent || (collections.length <= 1);
     }
 
     // ---- Import / Export helpers ----
@@ -914,26 +941,20 @@
     function updateFavGrid(win) {
         updateWindowTitle(win);
         var typeFilter = FAV_TYPE_VALUES[favTypeIdx];
-        var favItems;
 
-        if (typeFilter === "recent") {
-            // Recent list is pre-ordered and not filtered by type or search
-            favItems = buildRecentItems();
-        } else {
-            var allFavItems = buildFavItems();
-            if (typeFilter === "vegetation") {
-                var vegIds = getVegetationIdentifiers();
-                allFavItems = allFavItems.filter(function (item) {
-                    return (item.type === "small_scenery" || item.type === "large_scenery")
-                        && vegIds[item.identifier];
-                });
-            } else if (typeFilter !== "all") {
-                allFavItems = allFavItems.filter(function (item) {
-                    return item.type === typeFilter;
-                });
-            }
-            favItems = applySearch(allFavItems, favSearchText);
+        var allFavItems = (favViewMode === "recent") ? buildRecentItems() : buildFavItems();
+        if (typeFilter === "vegetation") {
+            var vegIds = getVegetationIdentifiers();
+            allFavItems = allFavItems.filter(function (item) {
+                return (item.type === "small_scenery" || item.type === "large_scenery")
+                    && vegIds[item.identifier];
+            });
+        } else if (typeFilter !== "all") {
+            allFavItems = allFavItems.filter(function (item) {
+                return item.type === typeFilter;
+            });
         }
+        var favItems = applySearch(allFavItems, favSearchText);
 
         var start = favCurrentPage * GRID_SIZE;
         favPageItems.length = 0;
@@ -976,15 +997,9 @@
         if (!(ui.tool && ui.tool.id === "fav-scenery-placer")) {
             var statusLbl = win.findWidget("fav_status");
             if (statusLbl) {
-                if (typeFilter === "recent") {
-                    statusLbl.text = favItems.length === 0
-                        ? "No recently placed items yet"
-                        : "Recently placed — click to place";
-                } else {
-                    statusLbl.text = favItems.length === 0
-                        ? "No favorites yet — add from All Scenery tab"
-                        : "Click a favorite to start placing";
-                }
+                statusLbl.text = favItems.length === 0
+                    ? "No favorites yet — add from All Scenery tab"
+                    : "Click a favorite to start placing";
             }
         }
 
@@ -996,10 +1011,21 @@
         var gb3H = 13 + 10 + gridH;
 
         // Empty-collection hint: show label and add one row of height so it fits
-        var collectionIsEmpty = collections[activeCollIdx].items.length === 0;
+        var isEmptyView = (favViewMode === "recent")
+            ? (recentItems.length === 0)
+            : (collections[activeCollIdx].items.length === 0);
         var emptyLbl = win.findWidget("fav_empty_lbl");
-        if (emptyLbl) emptyLbl.isVisible = collectionIsEmpty;
-        if (collectionIsEmpty) gb3H += BTN_H;
+        if (emptyLbl) {
+            emptyLbl.isVisible = isEmptyView;
+            emptyLbl.text = (favViewMode === "recent")
+                ? "No recently placed items yet"
+                : "Add to this collection using the scenery tab";
+        }
+        if (isEmptyView) gb3H += BTN_H;
+
+        // Remove button is meaningless in recent view — keep it disabled
+        var removeBtn = win.findWidget("fav_remove_btn");
+        if (removeBtn && favViewMode === "recent") removeBtn.isDisabled = true;
 
         var gb3Box = win.findWidget("fav_scenery_box");
         if (gb3Box) gb3Box.height = gb3H;
@@ -1241,13 +1267,21 @@
             y:             FAV_COLL_Y,
             width:         WIN_WIDTH - 2*MARGIN - 28 - 4 - 50 - 4 - 22 - 4 - 2*MARGIN,
             height:        13,
-            items:         collections.map(function (c) { return c.name; }),
-            selectedIndex: activeCollIdx,
+            items:         ["Recent Items"].concat(collections.map(function (c) { return c.name; })),
+            selectedIndex: (favViewMode === "recent") ? 0 : activeCollIdx + 1,
             onChange:      function (idx) {
-                activeCollIdx  = idx;
+                if (idx === 0) {
+                    favViewMode = "recent";
+                } else {
+                    favViewMode   = "collection";
+                    activeCollIdx = idx - 1;
+                }
                 saveCollections();
                 favCurrentPage = 0;
-                if (activeWindow) updateFavGrid(activeWindow);
+                if (activeWindow) {
+                    refreshCollectionDropdown(activeWindow);
+                    updateFavGrid(activeWindow);
+                }
             }
         });
         w.push({
@@ -1268,6 +1302,7 @@
             width:     50,
             height:    13,
             text:      "Rename",
+            isDisabled:(favViewMode === "recent"),
             onClick:   function () { showRenameCollectionDialog(); }
         });
         w.push({
@@ -1278,7 +1313,7 @@
             width:      28,
             height:     13,
             text:       "Del",
-            isDisabled: (collections.length <= 1),
+            isDisabled: (favViewMode === "recent") || (collections.length <= 1),
             onClick:    function () { showDeleteCollectionConfirm(); }
         });
 
@@ -1390,22 +1425,17 @@
             isDisabled:true,
             onClick:   function () {
                 var typeFilter = FAV_TYPE_VALUES[favTypeIdx];
-                var items;
-                if (typeFilter === "recent") {
-                    items = buildRecentItems();
-                } else {
-                    var allFavItems = buildFavItems();
-                    if (typeFilter === "vegetation") {
-                        var vegIds = getVegetationIdentifiers();
-                        allFavItems = allFavItems.filter(function (item) {
-                            return (item.type === "small_scenery" || item.type === "large_scenery")
-                                && vegIds[item.identifier];
-                        });
-                    } else if (typeFilter !== "all") {
-                        allFavItems = allFavItems.filter(function (item) { return item.type === typeFilter; });
-                    }
-                    items = applySearch(allFavItems, favSearchText);
+                var allFavItems = (favViewMode === "recent") ? buildRecentItems() : buildFavItems();
+                if (typeFilter === "vegetation") {
+                    var vegIds = getVegetationIdentifiers();
+                    allFavItems = allFavItems.filter(function (item) {
+                        return (item.type === "small_scenery" || item.type === "large_scenery")
+                            && vegIds[item.identifier];
+                    });
+                } else if (typeFilter !== "all") {
+                    allFavItems = allFavItems.filter(function (item) { return item.type === typeFilter; });
                 }
+                var items = applySearch(allFavItems, favSearchText);
                 var n = pageCount(items.length);
                 if (favCurrentPage < n - 1) {
                     favCurrentPage++;
@@ -1432,7 +1462,7 @@
             var item = favPageItems[i];
             if (!item.available) return;
             var rb = activeWindow.findWidget("fav_remove_btn");
-            if (rb) rb.isDisabled = false;
+            if (rb && favViewMode !== "recent") rb.isDisabled = false;
             // Toggle off if clicking the item that's already being placed
             if (ui.tool && ui.tool.id === "fav-scenery-placer"
                     && activePlacingItem
@@ -1445,7 +1475,6 @@
 
             // Switch to (or start) placement — suppress the old tool's onFinish cleanup
             // so it doesn't wipe activePlacingItem we're about to set.
-            // Also clear needHoverRestart so the onUpdate tick doesn't cancel the new tool.
             hoveredFavItem = item; // keep in sync so Remove button works without needing a hover pass
             suppressPlacerFinish = true;
             activePlacingItem = { type: item.type, identifier: item.identifier };
@@ -1667,7 +1696,7 @@
                         updateAllGrid(activeWindow);
                     }
                 }
-                needHoverRestart = true; // restart on next onUpdate tick (avoids tool re-entrancy)
+                needHoverRestart = true;
             }
         });
         if (activeWindow) {
@@ -1677,7 +1706,6 @@
             var statusLbl = activeWindow.findWidget("fav_status");
             if (statusLbl) statusLbl.text = "Click scenery on the map to add — Esc to cancel";
         }
-        // Clear the flag so onUpdate doesn't restart the hover tool and cancel the picker.
         needHoverRestart = false;
     }
 
@@ -1700,44 +1728,6 @@
         var inBtnY = relY - row * (BTN_H    + BTN_GAP);
         if (inBtnX >= BTN_SIZE || inBtnY >= BTN_H) return -1;
         return row * GRID_COLS + col;
-    }
-
-    // Activates a passive background tool that updates the hover label as the cursor moves.
-    // Uses cursor:"arrow" so it is visually unobtrusive. Re-activated after placement/picker finish.
-    function activateHoverTool() {
-        if (!activeWindow) return;
-        if (ui.tool && ui.tool.id === "fav-hover-detector") return; // already running
-        ui.activateTool({
-            id:     "fav-hover-detector",
-            cursor: "arrow",
-            filter: ["terrain"],
-            onMove: function (e) {
-                if (!activeWindow) return;
-                var sc = e.screenCoords;
-                if (!sc) return;
-                var tabIdx    = activeWindow.tabIndex;
-                var gridTop   = (tabIdx === 0) ? FAV_GRID_Y   : ALL_GRID_Y;
-                var pageItems = (tabIdx === 0) ? favPageItems : allPageItems;
-                var lblName   = (tabIdx === 0) ? "fav_hover_lbl" : "all_hover_lbl";
-                var idx = hitTestGrid(sc.x, sc.y, gridTop);
-                var lbl = activeWindow.findWidget(lblName);
-                if (!lbl) return;
-                var hoveredItem = (idx >= 0 && idx < pageItems.length) ? pageItems[idx] : null;
-                lbl.text = hoveredItem
-                    ? (hoveredItem.obj
-                        ? (hoveredItem.obj.name || hoveredItem.obj.identifier || "")
-                        : (hoveredItem.identifier || ""))
-                    : "";
-                if (tabIdx === 0) {
-                    // Only update when a valid item is under the cursor so hoveredFavItem
-                    // remains valid when the user moves to click the Remove button.
-                    if (hoveredItem !== null) {
-                        hoveredFavItem = hoveredItem;
-                    }
-                }
-            },
-            onFinish: function () { /* other code restarts as needed */ }
-        });
     }
 
     // ---- Remove-favorite confirmation window ----
@@ -1984,6 +1974,35 @@
             ]
         });
     }
+    // ---- Hover detector tool ----
+    // Runs continuously while the window is open (except on tab 2).
+    // Updates the hover label and hoveredFavItem as the cursor moves over the grid.
+    function activateHoverTool() {
+        ui.activateTool({
+            id:     "fav-hover-detector",
+            cursor: "default",
+            filter: [],
+            onMove: function (e) {
+                if (!activeWindow) return;
+                var tabIdx = activeWindow.tabIndex;
+                if (tabIdx === 2) return;
+                var isTab0    = (tabIdx === 0);
+                var gridTop   = isTab0 ? FAV_GRID_Y : ALL_GRID_Y;
+                var pageItems = isTab0 ? favPageItems : allPageItems;
+                var lblName   = isTab0 ? "fav_hover_lbl" : "all_hover_lbl";
+                var lbl = activeWindow.findWidget(lblName);
+                if (!lbl) return;
+                if (!e.screenCoords) { lbl.text = ""; return; }
+                var idx = hitTestGrid(e.screenCoords.x, e.screenCoords.y, gridTop);
+                var hi = (idx >= 0 && idx < pageItems.length) ? pageItems[idx] : null;
+                lbl.text = hi
+                    ? (hi.obj ? (hi.obj.name || hi.obj.identifier || "") : (hi.identifier || ""))
+                    : "";
+            },
+            onFinish: function () {}
+        });
+    }
+
     // ---- Window descriptor ----
     function buildWindowDesc() {
         return {
@@ -2009,36 +2028,39 @@
                 if (needHoverRestart && activeWindow && activeWindow.tabIndex !== 2) {
                     needHoverRestart = false;
                     activateHoverTool();
-                } else if (needHoverRestart) {
-                    needHoverRestart = false;
                 }
             },
             onTabChange: function () {
                 if (!activeWindow) return;
-                // Cancel picker and placer on any tab switch.
-                if (ui.tool && (ui.tool.id === "fav-scenery-placer" || ui.tool.id === "fav-scenery-picker")) {
+                // Cancel picker, placer, and hover detector on any tab switch.
+                if (ui.tool && (ui.tool.id === "fav-scenery-placer" || ui.tool.id === "fav-scenery-picker" ||
+                                ui.tool.id === "fav-hover-detector")) {
                     ui.tool.cancel();
                 }
                 if (activeWindow.tabIndex === 0) {
                     // Height is set dynamically by updateFavGrid based on filled rows
                     refreshCollectionDropdown(activeWindow);
                     updateFavGrid(activeWindow);
+                    needHoverRestart = true;
                 } else if (activeWindow.tabIndex === 1) {
                     activeWindow.height = ALL_HOVER_Y + 20;
                     hoveredFavItem = null;
                     updateAllGrid(activeWindow);
+                    needHoverRestart = true;
                 } else {
-                    // Tab 2: Import / Export
+                    // Tab 2: Import / Export — hover tool stays cancelled
                     activeWindow.height = IO_WIN_HEIGHT;
                     activeWindow.title  = "Import / Export Collections";
-                    if (ui.tool && ui.tool.id === "fav-hover-detector") ui.tool.cancel();
                     refreshIoCollDropdown(activeWindow);
                     var statusLbl = activeWindow.findWidget("io_status");
                     if (statusLbl) statusLbl.text = ioStatusText;
                 }
             },
-            
+
             onClose: function () {
+                if (activeWindow) {
+                    context.sharedStorage.set(WINDOW_POS_KEY, { x: activeWindow.x, y: activeWindow.y });
+                }
                 activeWindow = null; // clear first so onFinish callbacks see no window
                 if (ui.tool && (ui.tool.id === "fav-scenery-placer" ||
                                 ui.tool.id === "fav-scenery-picker" ||
@@ -2065,6 +2087,43 @@
         initThumbs();
         filteredCatalog = buildCatalog("all");
 
+        // Track ALL scenery placements (native UI or other plugins) for the Recent list.
+        var NATIVE_PLACE_TYPES = {
+            "smallsceneryplace":     "small_scenery",
+            "largesceneryplace":     "large_scenery",
+            "wallplace":             "wall",
+            "footpathadditionplace": "footpath_addition",
+            "bannerplace":           "banner"
+        };
+        context.subscribe("action.execute", function (e) {
+            var type = NATIVE_PLACE_TYPES[e.action];
+            if (!type) return;
+            if (!e.result || e.result.error) return;
+            var args = e.args;
+            if (!args || args.object === undefined || args.object === null) return;
+            if (args.flags && (args.flags & 0x40)) return; // skip ghost placements
+            try {
+                var objs = objectManager.getAllObjects(type);
+                for (var oi = 0; oi < objs.length; oi++) {
+                    if (objs[oi].index === args.object) {
+                        addToRecent(type, objs[oi].identifier);
+                        // If the All Scenery tab is currently showing "recent", refresh it live
+                        if (activeWindow && activeWindow.tabIndex === 1
+                                && TYPE_VALUES[currentTypeIdx] === "recent") {
+                            filteredCatalog = applySearch(buildCatalog("recent"), searchText);
+                            updateAllGrid(activeWindow);
+                        }
+                        // If the Favorites tab is showing the Recent Items collection, refresh it live
+                        if (activeWindow && activeWindow.tabIndex === 0
+                                && favViewMode === "recent") {
+                            updateFavGrid(activeWindow);
+                        }
+                        return;
+                    }
+                }
+            } catch (ex) { /* ignore */ }
+        });
+
         ui.registerShortcut({
             id:       "favorite-scenery.rotate",
             text:     "Favorite Scenery: Rotate placement direction",
@@ -2074,11 +2133,11 @@
 
 
 
-        ui.registerMenuItem("Favorite Scenery", function () {
-            // Bring existing window to front if open
+        function openFavoritesWindow() {
+            // Toggle: close if already open, otherwise open
             try {
                 var existing = ui.getWindow("favorite-scenery");
-                if (existing) { existing.bringToFront(); return; }
+                if (existing) { existing.close(); return; }
             } catch (e) { /* window not found */ }
 
             // Reset pagination and search
@@ -2090,22 +2149,37 @@
             favTypeIdx      = 0;
             filteredCatalog = buildCatalog("all");
 
-            var win = ui.openWindow(buildWindowDesc());
+            var desc = buildWindowDesc();
+            var savedPos = context.sharedStorage.get(WINDOW_POS_KEY);
+            if (savedPos && typeof savedPos.x === "number" && typeof savedPos.y === "number") {
+                desc.x = savedPos.x;
+                desc.y = savedPos.y;
+            }
+            var win = ui.openWindow(desc);
             activeWindow = win;
             refreshCollectionDropdown(win);
             updateFavGrid(win);
             activateHoverTool();
+        }
+
+        ui.registerShortcut({
+            id:       "favorite-scenery.open",
+            text:     "Favorite Scenery: Open window",
+            bindings: ["CTRL+F"],
+            callback: openFavoritesWindow
         });
+
+        ui.registerMenuItem("Favorite Scenery", openFavoritesWindow);
     }
 
     registerPlugin({
         name:            "Favorite Scenery",
-        version:         "1.0.1",
+        version:         "1.1.0",
         authors:         ["DookieNukem"],
         type:            "local",
         licence:         "MIT",
-        targetApiVersion:110,
-        main:            main
+        targetApiVersion: 110,
+        main:             main
     });
 
 })();

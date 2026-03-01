@@ -11,11 +11,12 @@ A plugin for [OpenRCT2](https://openrct2.io) that lets you build collections of 
 - **Pick from the map** — use the eyedropper to click placed scenery on the map and add it to your collection
 - **Place favorites** from your collection with a single click
 - **Multiple named collections** — create, rename, and delete collections to organize your scenery
-- **Recently placed** view to quickly re-use items you've placed recently
+- **Recent Items** — a dynamic collection that automatically tracks everything you place, even from the native game UI, so your most-used scenery is always one click away
 - **Filter by type**: All Types, Small Scenery, Large Scenery, Trees & Plants, Walls, Path Items, Banners
 - **Search** by name or object identifier
 - **Global color palette** — set primary, secondary, and tertiary colors applied to every item you place
 - **Import / Export** collections as JSON to share with others or back up your favorites
+- **Keyboard shortcut** — press `Ctrl+F` (customizable) to open or close the window from anywhere
 - Favorites persist across saves and scenarios via OpenRCT2's shared storage
 
 ## Installation
@@ -36,7 +37,7 @@ This tab shows the items saved in your active collection. Use it to place your f
 
 | Control | Action |
 |---------|--------|
-| Collection dropdown | Switch between your named collections |
+| Collection dropdown | Switch between your named collections, or select *Recent Items* for the auto-tracked recents list |
 | **+** button | Create a new collection |
 | **Rename** button | Rename the active collection |
 | **Delete** button | Delete the active collection (disabled if only one exists) |
@@ -74,6 +75,15 @@ Use this tab to share collections or move them between machines.
 1. Click **Import JSON...**
 2. Paste the JSON you copied from another session and click OK
 3. Collections are **merged** — existing collections with matching names get new items added without duplicates; new collection names are created fresh
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+F` | Open / close the Favorite Scenery window |
+| (none by default) | Rotate placement direction |
+
+Shortcuts are customizable in-game via **Options → Keyboard Shortcuts → Favorite Scenery**.
 
 ## Requirements
 
