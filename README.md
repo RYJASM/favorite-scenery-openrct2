@@ -16,6 +16,7 @@ A plugin for [OpenRCT2](https://openrct2.io) that lets you build collections of 
 - **Search** by name or object identifier
 - **Global color palette** — set primary, secondary, and tertiary colors applied to every item you place
 - **Import / Export** collections as JSON to share with others or back up your favorites
+- **Enable Objects** from a collection in one click — loads all required scenery objects into the current save (offline only; disabled in multiplayer)
 - **Keyboard shortcut** — press `Ctrl+F` (customizable) to open or close the window from anywhere
 - Favorites persist across saves and scenarios via OpenRCT2's shared storage
 
@@ -79,6 +80,14 @@ Use this tab to share collections or move them between machines.
 1. Click **Import JSON...**
 2. Paste the JSON you copied from another session and click OK
 3. Collections are **merged** — existing collections with matching names get new items added without duplicates; new collection names are created fresh
+
+**To enable objects from a collection (offline saves only):**
+1. Choose a collection from the *Enable Objects* dropdown (or *All Collections*)
+2. Click **Enable**
+3. All scenery objects referenced by that collection are loaded into the current save
+4. The status label reports how many objects were enabled and how many were not found locally
+
+> **Note:** This feature is disabled in multiplayer. Object changes in multiplayer must go through the host.
 
 ## Keyboard Shortcuts
 
