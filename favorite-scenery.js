@@ -741,6 +741,20 @@
         var xAdj = 0, yAdj = 0;
         var failed = false;
 
+        // Determine which colour channels this object actually supports.
+        // Only small_scenery exposes obj.flags in the plugin API; large_scenery and
+        // wall do not, so we leave hasPC/hasSC/hasTC = true for those types.
+        // When a channel is unsupported we pass 0 instead of the user colour so that
+        // any stray remap-range pixels render at colour-0 shades rather than going
+        // transparent (the result of leaving g.colour unset) or showing the wrong hue.
+        var hasPC = true, hasSC = true, hasTC = true;
+        if (item.type === "small_scenery" && item.obj.flags !== undefined) {
+            var f = item.obj.flags;
+            hasPC = (f & 0x400)        !== 0;
+            hasSC = (f & 0x80000)      !== 0;
+            hasTC = (f & 0x20000000)   !== 0;
+        }
+
         function execDraw() {
             failed = false;
             try {
@@ -753,9 +767,9 @@
                     var drawX = THUMB_PAD + Math.floor((innerW - info.width)  / 2) - info.offset.x + xAdj;
                     var drawY = THUMB_PAD + Math.floor((innerH - info.height) / 2) - info.offset.y + yAdj;
                     g.clip(THUMB_PAD, THUMB_PAD, innerW, innerH);
-                    if (pc !== undefined) g.colour          = pc;
-                    if (sc !== undefined) g.secondaryColour = sc;
-                    if (tc !== undefined) g.tertiaryColour  = tc;
+                    g.colour          = (pc !== undefined && hasPC) ? pc : 0;
+                    g.secondaryColour = (sc !== undefined && hasSC) ? sc : 0;
+                    g.tertiaryColour  = (tc !== undefined && hasTC) ? tc : 0;
                     g.image(rotatedBase, drawX, drawY);
                     var glassOffset = 0;
                     if (hasGlass) {
@@ -1591,9 +1605,9 @@
         w.push({
             type:      "label",
             name:      "fav_page_lbl",
-            x:         250,
+            x:         264,
             y:         FAV_TYPE_Y + 2,
-            width:     164,
+            width:     134,
             height:    10,
             text:      "1/1",
             textAlign: "centred"
@@ -2377,7 +2391,7 @@
 
     registerPlugin({
         name:            "Favorite Scenery",
-        version:         "1.2.1",
+        version:         "1.2.2",
         authors:         ["DookieNukem"],
         type:            "local",
         licence:         "MIT",
