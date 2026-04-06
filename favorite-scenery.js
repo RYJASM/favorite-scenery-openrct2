@@ -41,7 +41,7 @@
     var FAV_HOVER_Y = FAV_GRID_Y + GRID_ROWS * (BTN_H + BTN_GAP) - BTN_GAP + 10;
 
     // Tab 2 (Import/Export): no grid, fixed shorter height
-    var IO_WIN_HEIGHT = 210;
+    var IO_WIN_HEIGHT = 226;
 
     // Bit 9 of SmallSceneryObject.flags — object has a glass overlay sprite at baseImageId+4
     var SMALL_SCENERY_FLAG_HAS_GLASS = 0x200; // bit 9 — has glass overlay sprites
@@ -489,6 +489,166 @@
         return msg;
     }
 
+    function closeDialog(classification) {
+        try {
+            var existing = ui.getWindow(classification);
+            if (existing) existing.close();
+        } catch (e) { /* ignore */ }
+    }
+
+    function syncIoStatus() {
+        if (!activeWindow) return;
+        var importLbl = activeWindow.findWidget("io_status");
+        if (importLbl) importLbl.text = ioStatusText;
+        var enableLbl = activeWindow.findWidget("io_enable_status");
+        if (enableLbl) enableLbl.text = ioEnableStatusText;
+        refreshIoCollDropdown(activeWindow);
+        refreshCollectionDropdown(activeWindow);
+        updateWindowTitle(activeWindow);
+    }
+
+    function showExportCollectionsDialog(exportIdx) {
+        closeDialog("fav-export-json");
+
+        var json = exportCollections(exportIdx);
+        var needsFocus = true;
+        ui.openWindow({
+            classification: "fav-export-json",
+            title:          "Export Collections",
+            width:          430,
+            height:         84,
+            widgets: [
+                {
+                    type:   "label",
+                    name:   "export_json_hint",
+                    x:      10,
+                    y:      20,
+                    width:  410,
+                    height: 11,
+                    text:   "Press Ctrl+A, then Ctrl+C to copy the full JSON."
+                },
+                {
+                    type:      "textbox",
+                    name:      "export_json_text",
+                    x:         10,
+                    y:         34,
+                    width:     410,
+                    height:    13,
+                    text:      json,
+                    maxLength: Math.max(json.length + 1, 8192)
+                },
+                {
+                    type:    "button",
+                    name:    "export_json_close",
+                    x:       315,
+                    y:       56,
+                    width:   105,
+                    height:  14,
+                    text:    "Close",
+                    onClick: function () {
+                        closeDialog("fav-export-json");
+                    }
+                }
+            ],
+            onUpdate: function () {
+                if (!needsFocus) return;
+                needsFocus = false;
+                try {
+                    var dlg = ui.getWindow("fav-export-json");
+                    var tb = dlg ? dlg.findWidget("export_json_text") : null;
+                    if (tb) tb.focus();
+                } catch (e) { /* ignore */ }
+            }
+        });
+    }
+
+    function showImportCollectionsDialog() {
+        closeDialog("fav-import-json");
+
+        var needsFocus = true;
+        ui.openWindow({
+            classification: "fav-import-json",
+            title:          "Import Collections",
+            width:          430,
+            height:         98,
+            widgets: [
+                {
+                    type:   "label",
+                    name:   "import_json_hint",
+                    x:      10,
+                    y:      20,
+                    width:  410,
+                    height: 11,
+                    text:   "Paste exported JSON, then click Import."
+                },
+                {
+                    type:      "textbox",
+                    name:      "import_json_text",
+                    x:         10,
+                    y:         34,
+                    width:     410,
+                    height:    13,
+                    text:      "",
+                    maxLength: 500000
+                },
+                {
+                    type:   "label",
+                    name:   "import_json_status",
+                    x:      10,
+                    y:      52,
+                    width:  410,
+                    height: 11,
+                    text:   ""
+                },
+                {
+                    type:    "button",
+                    name:    "import_json_ok",
+                    x:       205,
+                    y:       70,
+                    width:   105,
+                    height:  14,
+                    text:    "Import",
+                    onClick: function () {
+                        try {
+                            var dlg = ui.getWindow("fav-import-json");
+                            var tb = dlg ? dlg.findWidget("import_json_text") : null;
+                            var status = dlg ? dlg.findWidget("import_json_status") : null;
+                            var value = (tb && tb.text) ? tb.text.trim() : "";
+                            var result = value ? importCollections(value) : "Paste exported JSON first";
+                            ioStatusText = result;
+                            syncIoStatus();
+                            if (status) status.text = result;
+                            if (result.indexOf("Error:") !== 0 && value) {
+                                if (dlg) dlg.close();
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+                },
+                {
+                    type:    "button",
+                    name:    "import_json_cancel",
+                    x:       315,
+                    y:       70,
+                    width:   105,
+                    height:  14,
+                    text:    "Cancel",
+                    onClick: function () {
+                        closeDialog("fav-import-json");
+                    }
+                }
+            ],
+            onUpdate: function () {
+                if (!needsFocus) return;
+                needsFocus = false;
+                try {
+                    var dlg = ui.getWindow("fav-import-json");
+                    var tb = dlg ? dlg.findWidget("import_json_text") : null;
+                    if (tb) tb.focus();
+                } catch (e) { /* ignore */ }
+            }
+        });
+    }
+
     function enableObjectsFromCollections(collIdx) {
         var seen = {};
         var unique = [];
@@ -550,19 +710,12 @@
             height:  14,
             text:    "Export",
             onClick: function () {
-                var json = exportCollections(ioExportCollIdx);
-                ui.showTextInput({
-                    title:        "Export Collections",
-                    description:  "Select all and copy (Ctrl+A, Ctrl+C):",
-                    initialValue: json,
-                    maxLength:    500000,
-                    callback:     function () {}
-                });
+                showExportCollectionsDialog(ioExportCollIdx);
             }
         });
 
         // Import groupbox
-        w.push({ type: "groupbox", name: "io_import_box", x: MARGIN, y: 84, width: GBWIDE, height: 48, text: "Import (merge-only)" });
+        w.push({ type: "groupbox", name: "io_import_box", x: MARGIN, y: 84, width: GBWIDE, height: 62, text: "Import (merge-only)" });
         w.push({
             type:   "label",
             name:   "io_import_hint",
@@ -581,38 +734,22 @@
             height:  14,
             text:    "Import JSON...",
             onClick: function () {
-                ui.showTextInput({
-                    title:        "Import Collections",
-                    description:  "Paste exported JSON and click OK:",
-                    initialValue: "",
-                    maxLength:    500000,
-                    callback:     function (value) {
-                        if (!value || !value.trim()) return;
-                        var result = importCollections(value.trim());
-                        ioStatusText = result;
-                        if (activeWindow) {
-                            var lbl = activeWindow.findWidget("io_status");
-                            if (lbl) lbl.text = result;
-                            refreshIoCollDropdown(activeWindow);
-                            refreshCollectionDropdown(activeWindow);
-                        }
-                    }
-                });
+                showImportCollectionsDialog();
             }
         });
 
         // Status label — shows result of last import
-        w.push({ type: "label", name: "io_status", x: MARGIN, y: 137, width: GBWIDE, height: 12, text: ioStatusText });
+        w.push({ type: "label", name: "io_status", x: INNER, y: 129, width: GBWIDE - 12, height: 12, text: ioStatusText });
 
         // Enable Objects groupbox
         var isMultiplayer = (network.mode !== "none");
-        w.push({ type: "groupbox", name: "io_enable_box", x: MARGIN, y: 142, width: GBWIDE, height: 42, text: "Enable Objects from Collection" });
-        w.push({ type: "label", name: "io_enable_lbl", x: INNER, y: 166, width: 68, height: 12, text: "Collection:" });
+        w.push({ type: "groupbox", name: "io_enable_box", x: MARGIN, y: 150, width: GBWIDE, height: 52, text: "Enable Objects from Collection" });
+        w.push({ type: "label", name: "io_enable_lbl", x: INNER, y: 164, width: 68, height: 12, text: "Collection:" });
         w.push({
             type:          "dropdown",
             name:          "io_enable_coll_select",
             x:             INNER + 70,
-            y:             165,
+            y:             163,
             width:         dropW,
             height:        13,
             items:         buildEnableDropdownItems(),
@@ -623,7 +760,7 @@
             type:       "button",
             name:       "io_enable_btn",
             x:          WIN_WIDTH - MARGIN - 56,
-            y:          164,
+            y:          162,
             width:      50,
             height:     14,
             text:       "Enable",
@@ -639,7 +776,7 @@
         });
 
         // Enable status label
-        w.push({ type: "label", name: "io_enable_status", x: MARGIN, y: 188, width: GBWIDE, height: 12,
+        w.push({ type: "label", name: "io_enable_status", x: INNER, y: 187, width: GBWIDE - 12, height: 12,
                  text: isMultiplayer ? "Not available in multiplayer" : ioEnableStatusText });
 
         return w;
@@ -2282,7 +2419,14 @@
                     ui.tool.cancel();
                 }
                 // Close any open sub-dialogs
-                var subDialogs = ["fav-remove-confirm", "fav-new-coll", "fav-rename-coll", "fav-delete-coll"];
+                var subDialogs = [
+                    "fav-remove-confirm",
+                    "fav-new-coll",
+                    "fav-rename-coll",
+                    "fav-delete-coll",
+                    "fav-export-json",
+                    "fav-import-json"
+                ];
                 for (var di = 0; di < subDialogs.length; di++) {
                     try {
                         var dlg = ui.getWindow(subDialogs[di]);
@@ -2391,7 +2535,7 @@
 
     registerPlugin({
         name:            "Favorite Scenery",
-        version:         "1.2.2",
+        version:         "1.2.4",
         authors:         ["DookieNukem"],
         type:            "local",
         licence:         "MIT",
@@ -2400,4 +2544,3 @@
     });
 
 })();
-
